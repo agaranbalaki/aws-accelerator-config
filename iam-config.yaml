@@ -1,0 +1,166 @@
+providers: []
+identityCenter:
+  name: identityCenter1
+  #delegatedAdminAccount: Audit
+  identityCenterPermissionSets:
+    - name: cloud-admin
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+      sessionDuration: 120
+    - name: rReadonly
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/ReadOnlyAccess
+      sessionDuration: 120
+    - name: Biling
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/job-function/Billing
+        # acceleratorManaged:
+        #   - Default-costexplorer-role-Policy
+      sessionDuration: 120
+    - name: poweruser
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/PowerUserAccess
+      sessionDuration: 120
+    - name: systemadministrator
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/job-function/SystemAdministrator
+      sessionDuration: 120
+    - name: securityaudit
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/SecurityAudit
+      sessionDuration: 120
+    - name: securityresponse
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/AdministratorAccess
+      sessionDuration: 120
+    - name: networkadmin
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/job-function/NetworkAdministrator
+      sessionDuration: 120
+    - name: operations
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/IAMFullAccess
+      sessionDuration: 120
+    - name: role-sagitecadmin-cap
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/AWSBackupFullAccess
+          - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+          - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+          - arn:aws:iam::aws:policy/AWSCertificateManagerFullAccess
+          - arn:aws:iam::aws:policy/AWSCloudShellFullAccess
+        # acceleratorManaged:
+        #   - Default-sysop-role-Policy
+      sessionDuration: 120
+    - name: devops-dev
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/ReadOnlyAccess
+          - arn:aws:iam::aws:policy/PowerUserAccess          
+        acceleratorManaged:
+          - deny-networking-administratiion-policy
+      sessionDuration: 120      
+    - name: devops-test
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/ReadOnlyAccess
+        acceleratorManaged:
+          - deny-ec2-administratiion-policy
+      sessionDuration: 120            
+    - name: role-custom
+      policies:
+        awsManaged:
+          - arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+          - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+        acceleratorManaged:
+          - default-boundary-policy
+      sessionDuration: 120
+    # - name: role-sandbox-cap
+    #   policies:
+    #     awsManaged:
+    #       - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+    #       - arn:aws:iam::aws:policy/AWSBackupFullAccess
+    #       - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+    #       - arn:aws:iam::aws:policy/AWSLakeFormationDataAdmin
+    #       - arn:aws:iam::aws:policy/job-function/DataScientist
+    #       - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+    #       - arn:aws:iam::aws:policy/service-role/AWSQuickSightDescribeRedshift
+    #       - arn:aws:iam::aws:policy/service-role/QuickSightAccessForS3StorageManagementAnalyticsReadOnly
+    #       - arn:aws:iam::aws:policy/AmazonCognitoPowerUser
+    #     acceleratorManaged:
+    #       - Default-sysop-role-Policy
+    # - name: role-admin-child-account-cap
+    #   policies:
+    #     awsManaged:
+    #       - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+    #       - arn:aws:iam::aws:policy/AWSBackupFullAccess
+    #       - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+    #       - arn:aws:iam::aws:policy/AWSLakeFormationDataAdmin
+    #       - arn:aws:iam::aws:policy/job-function/DataScientist
+    #       - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+    #       - arn:aws:iam::aws:policy/service-role/AWSQuickSightDescribeRedshift
+    #       - arn:aws:iam::aws:policy/service-role/QuickSightAccessForS3StorageManagementAnalyticsReadOnly
+    #       - arn:aws:iam::aws:policy/AmazonCognitoPowerUser
+    #     acceleratorManaged:
+    #       - Default-sysop-role-Policy      
+    #   sessionDuration: 120
+policySets: 
+  - deploymentTargets:
+      organizationalUnits:
+        - Root
+    policies:
+      - name: default-boundary-policy
+        policy: iam-policies/boundary-policy.json
+      - name: deny-ec2-administratiion-policy
+        policy: iam-policies/ec2-management-deny.json   
+      - name: deny-networking-administratiion-policy
+        policy: iam-policies/ec2-networking-deny.json           
+roleSets:
+  - deploymentTargets:
+      organizationalUnits:
+        - Root
+      excludedAccounts:
+        - Management
+    roles:
+      - name: BreakGlass-Role
+        assumedBy:
+          - type: account
+            principal: Management
+        policies:
+          awsManaged:
+            - AdministratorAccess
+      - name: Ec2-ssm-Role-01
+        instanceProfile: true      
+        assumedBy:
+          - type: service
+            principal: ec2.amazonaws.com          
+        policies:
+          awsManaged:
+            - AmazonSSMManagedInstanceCore            
+groupSets:
+  - deploymentTargets:
+      accounts:
+        - Management
+    groups:
+      - name: BreakGlass-Admins
+        policies:
+          awsManaged:
+            - AdministratorAccess  # AWS managed policy
+
+userSets: []
+  # - deploymentTargets:
+  #     accounts:
+  #       - Management
+  #   users:
+  #     - username: BreakGlass-User
+  #       group: BreakGlass-Admins
+  #       boundaryPolicy: default-boundary-policy

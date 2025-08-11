@@ -1,0 +1,58 @@
+customizations:
+  cloudFormationStacks:
+    - deploymentTargets:
+        accounts:
+          - Audit
+      description: Deploy Guardduty eventbridge alert and SNS topic
+      name: GuardDutyAlerts
+      regions:
+      - us-east-1
+      runOrder: 1
+      template: cloudformation/GuarddutyAlertStack.template.json
+      terminationProtection: true
+    - deploymentTargets:
+        accounts:
+          - HIS-Dev
+      description: HIPAA Conformance pack
+      name: HIPAAconformancepack
+      regions:
+      - us-east-1
+      runOrder: 1
+      template: cloudformation/HIPAA-conformance-pack.template
+      # parameters:
+      #   - name: TicketGenFunctionName
+      #     value: ""
+      terminationProtection: true    
+#     - deploymentTargets:
+#         accounts:
+#           - Network
+#       description: Deploy ASR Member Roles
+#       name: AutomatedSecurityResponseMemberRolesStack
+#       regions:
+#       - us-east-1
+#       runOrder: 2
+#       template: cloudformation/aws-sharr-member-roles.template
+#       parameters:
+#         - name: Namespace
+#           value: "audit-asr"
+#         - name: SecHubAdminAccount
+#           value: "140023391463"
+#       terminationProtection: true             
+#     - deploymentTargets:
+#         accounts:
+#           - Network
+#       description: Deploy ASR on all memeber accounts
+#       name: AutomatedSecurityResponseMemberAccountStack
+#       regions:
+#       - us-east-1
+#       runOrder: 3
+#       template: cloudformation/aws-sharr-member.template
+#       parameters:
+#         - name: SecHubAdminAccount
+#           value: "140023391463"      
+#         - name: Namespace
+#           value: "audit-asr"    
+#         - name: LogGroupName
+#           value: "securityhubasrloggroup"                  
+#       terminationProtection: true                     
+# # test remote update 

@@ -1,0 +1,1035 @@
+###################################################################################
+# For additional configurable services, features, and property descriptions,      #
+# please review our network configuration reference in our README.md:             #
+# https://github.com/awslabs/landing-zone-accelerator-on-aws/blob/main/README.md  #
+###################################################################################
+homeRegion: &HOME_REGION us-east-1
+#####################################
+# Delete default VPCs-- use this    #
+# object to delete default VPCs in  #
+# any non-excluded accounts         #
+#####################################
+defaultVpc:
+  delete: true
+  excludeAccounts: []
+
+#####################################
+# Transit Gateways-- use this object #
+# to deploy transit gateways         #
+#####################################
+transitGateways:
+  - name: Network-Main
+    account: Network
+    region: *HOME_REGION
+    shareTargets:
+      organizationalUnits:
+        - Infrastructure
+        - Workload/Test
+        - Workload/Dev
+        - Workload/Prod
+    asn: 65521
+    dnsSupport: enable
+    vpnEcmpSupport: enable
+    defaultRouteTableAssociation: disable
+    defaultRouteTablePropagation: disable
+    autoAcceptSharingAttachments: enable
+    routeTables:
+      - name: Network-Main-Inspection
+        routes:
+        # - destinationCidrBlock: 10.116.64.0/20
+        #   attachment:
+        #     vpcName: prod-vpc
+        #     account: Prod
+        # - destinationCidrBlock: 10.116.0.0/21
+        #   attachment:
+        #     vpcName: dev-vpc
+        #     account: Dev
+        - destinationCidrBlock: 0.0.0.0/0
+          attachment:
+            vpcName: egress-vpc
+            account: Network        
+      - name: Network-Main-Spoke
+        routes: 
+          - destinationCidrBlock: 0.0.0.0/0
+            attachment:
+              vpcName: inspection-vpc
+              account: Network    
+          # - destinationCidrBlock: 10.116.64.0/20
+          #   attachment:
+          #     vpcName: prod-vpc
+          #     account: Prod  
+          # - destinationCidrBlock: 10.116.0.0/21
+          #   attachment:
+          #     vpcName: dev-vpc
+          #     account: Dev   
+          # - destinationCidrBlock: 10.116.80.0/22
+          #   attachment:
+          #     vpcName: Network-Endpoints
+          #     account: Network                                                                                
+
+#####################################
+# Endpoint policies -- use this     #
+# object to define standard policies #
+# for VPC endpoints                 #
+#####################################
+endpointPolicies:
+  - name: Default
+    document: vpc-endpoint-policies/default.json
+  - name: Ec2
+    document: vpc-endpoint-policies/ec2.json
+
+centralNetworkServices:
+  delegatedAdminAccount: Network
+
+#Netowrk Firewall Deployment
+
+  networkFirewall:
+    firewalls:
+      - name: accelerator-firewall
+        firewallPolicy: accelerator-policy
+        subnets:
+          - inspection-nfw-A
+          - inspection-nfw-B
+        vpc: inspection-vpc
+        loggingConfiguration:
+          # - destination: s3
+          - destination: cloud-watch-logs
+            type: ALERT
+          - destination: cloud-watch-logs
+            type: FLOW
+    policies:
+      - name: accelerator-policy
+        regions:
+          - *HOME_REGION
+        firewallPolicy:
+          statelessDefaultActions: ["aws:forward_to_sfe"]
+          statelessFragmentDefaultActions: ["aws:forward_to_sfe"]
+          statefulRuleGroups:
+            - name: accelerator-rule-group
+            - name: domain-list-group
+        shareTargets:
+          organizationalUnits:
+            - Infrastructure
+      - name: strict-accelerator-policy
+        regions:
+          - *HOME_REGION
+        firewallPolicy:
+          statelessDefaultActions: ["aws:forward_to_sfe"]
+          statelessFragmentDefaultActions: ["aws:forward_to_sfe"]
+          statefulDefaultActions: ["aws:drop_established", "aws:alert_established"]
+          statefulEngineOptions: STRICT_ORDER
+          streamExceptionPolicy: REJECT
+          statefulRuleGroups:
+            - name: strict-ipallow-rule-group
+              priority: 100
+            - name: strict-domain-list-group
+              priority: 200
+        shareTargets:
+          organizationalUnits:
+            - Infrastructure            
+    rules:
+      - name: accelerator-rule-group
+        regions:
+          - *HOME_REGION
+        capacity: 100
+        type: STATEFUL
+        ruleGroup:
+          rulesSource:
+            statefulRules:
+              # Block traffic between production VPCs
+              - action: DROP
+                header:
+                  destination: 10.4.0.0/22
+                  destinationPort: ANY
+                  direction: ANY
+                  protocol: IP
+                  source: 10.5.0.0/22
+                  sourcePort: ANY
+                ruleOptions:
+                  - keyword: sid
+                    settings: ["100"]
+
+              # - action: ALERT
+              #   header:
+              #     destination: 8.8.8.8/32
+              #     destinationPort: ANY
+              #     direction: FORWARD
+              #     protocol: TCP
+              #     source: ANY
+              #     sourcePort: ANY
+              #   ruleOptions:
+              #     - keyword: msg
+              #       settings: ['"example message"']
+              #     - keyword: sid
+              #       settings: ["102"]
+
+      - name: domain-list-group
+        regions:
+          - *HOME_REGION
+        capacity: 10
+        type: STATEFUL
+        ruleGroup:
+          rulesSource:
+            rulesSourceList:
+              generatedRulesType: DENYLIST
+              # Add/Modify the domain list per business needs.
+              targets: [".example.com"]
+              targetTypes: ["TLS_SNI", "HTTP_HOST"]
+          # ruleVariables:
+          #   ipSets:
+          #     name: HOME_NET
+          #     definition:
+          #       - 10.1.0.0/22
+          #       - 10.2.0.0/22
+          #       - 10.3.0.0/22
+          #       - 10.4.0.0/22
+          #       - 10.5.0.0/22
+          #   portSets:
+          #     name: HOME_NET
+          #     definition:
+          #       - "80"
+          #       - "443"
+      - name: strict-ipallow-rule-group
+        regions:
+          - *HOME_REGION
+        capacity: 100
+        type: STATEFUL
+        ruleGroup:
+          statefulRuleOptions: STRICT_ORDER        
+          rulesSource:
+            statefulRules:
+              - action: PASS
+                header:
+                  destination: 10.0.0.0/8
+                  destinationPort: ANY
+                  direction: ANY
+                  protocol: TCP
+                  source: 10.0.0.0/8
+                  sourcePort: ANY
+                ruleOptions:
+                  - keyword: sid
+                    settings: ["100"]
+      - name: strict-domain-list-group
+        regions:
+          - *HOME_REGION
+        capacity: 100
+        type: STATEFUL
+        ruleGroup:
+          statefulRuleOptions: STRICT_ORDER
+          rulesSource:
+            rulesSourceList:
+              generatedRulesType: ALLOWLIST
+              # Add/Modify the domain list per business needs.
+              targets: [".amazon.com",".amazonaws.com"]
+              targetTypes: ["TLS_SNI", "HTTP_HOST"]                    
+          ruleVariables:
+            ipSets:
+              name: HOME_NET
+              definition:
+                - 10.0.0.0/8         
+            portSets:
+              name: HOME_NET
+              definition:
+                - "80"
+                - "443"         
+
+
+  route53Resolver: 
+      endpoints:
+        - name: Inbound-Endpoint
+          type: INBOUND 
+          vpc: Network-Endpoints
+          subnets:
+            - Network-Endpoints-A
+            - Network-Endpoints-B      
+        - name: Outbound-Endpoint
+          type: OUTBOUND 
+          vpc: Network-Endpoints
+          subnets:
+            - Network-Endpoints-A
+            - Network-Endpoints-B
+          rules:
+            - name: outbound-rule-xyz
+              ruleType: FORWARD 
+              domainName: internal.xyz.com #to simulate the on-prem data server
+              targetIps:
+              - ip: 192.168.0.0 
+                port: '53' 
+              shareTargets:
+                organizationalUnits:
+                   - Root
+            - name: outbound-rule-xyz-reverse-lookup
+              ruleType: FORWARD 
+              domainName: 10.in-addr.arpa
+              targetIps:
+              - ip: 10.168.0.0 
+                port: '53' 
+              shareTargets:
+                organizationalUnits:
+                   - Root                   
+                   
+                   
+            # for internal endpoint 
+            # inboundEndpointTarget: *InboundEndpoint* # This endpoint must be listed in the configuration before the outbound endpoint
+  
+#####################################
+# VPCs-- use this object to deploy  #
+# a VPC in a single account and     #
+# region.                           #
+#####################################
+vpcs:
+  - name: Network-Endpoints
+    account: Network
+    region: *HOME_REGION
+    cidrs:
+      - 10.116.80.0/22
+      - 100.64.5.0/24
+    internetGateway: false
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    routeTables:
+      - name: Network-Endpoints-Tgw-A
+        routes: []
+      - name: Network-Endpoints-Tgw-B
+        routes: []
+      - name: Network-Endpoints-A
+        routes:
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main
+          - name: S3Gateway
+            type: gatewayEndpoint
+            target: s3
+          - name: DynamoDBGateway
+            type: gatewayEndpoint
+            target: dynamodb
+      - name: Network-Endpoints-B
+        routes:
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main
+          - name: S3Gateway
+            type: gatewayEndpoint
+            target: s3
+          - name: DynamoDBGateway
+            type: gatewayEndpoint
+            target: dynamodb
+    subnets:
+      - name: Network-Endpoints-A
+        availabilityZone: a
+        routeTable: Network-Endpoints-A
+        ipv4CidrBlock: 10.116.80.0/24
+      - name: Network-Endpoints-B
+        availabilityZone: b
+        routeTable: Network-Endpoints-B
+        ipv4CidrBlock: 10.116.81.0/24
+      - name: Network-EndpointsTgwAttach-A
+        availabilityZone: a
+        routeTable: Network-Endpoints-Tgw-A
+        ipv4CidrBlock: 100.64.5.0/28
+      - name: Network-EndpointsTgwAttach-B
+        availabilityZone: b
+        routeTable: Network-Endpoints-Tgw-B
+        ipv4CidrBlock: 100.64.5.16/28
+    transitGatewayAttachments:
+      - name: Network-Endpoints
+        transitGateway:
+          name: Network-Main
+          account: Network
+        routeTableAssociations:
+          - Network-Main-Spoke
+        routeTablePropagations:
+          - Network-Main-Inspection
+        subnets:
+          - Network-EndpointsTgwAttach-A
+          - Network-EndpointsTgwAttach-B
+    gatewayEndpoints:
+      defaultPolicy: Default
+      endpoints:
+        - service: s3
+        - service: dynamodb
+    interfaceEndpoints:
+      central: true
+      defaultPolicy: Default
+      subnets:
+        - Network-Endpoints-A
+        - Network-Endpoints-B
+      endpoints:
+        - service: ec2
+        - service: ec2messages
+        - service: ssm
+        - service: ssmmessages
+        - service: kms
+        - service: logs
+
+
+##########################################
+#Egress VPC
+##########################################
+  - name: egress-vpc
+    account: Network
+    region: *HOME_REGION
+    internetGateway: true
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    cidrs:
+      - 10.116.42.0/24
+      - 100.64.2.0/24
+
+    natGateways:
+      - name: network-egress-nat-A
+        subnet: network-egress-public-A
+      - name: network-egress-nat-B
+        subnet: network-egress-public-B    
+
+    routeTables:
+      - name: egress-tgw-A
+        routes:
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main        
+          - name: NatRoute
+            destination: 0.0.0.0/0
+            type: natGateway  
+            target: network-egress-nat-A        
+      - name: egress-tgw-B
+        routes:
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main        
+          - name: NatRoute
+            destination: 0.0.0.0/0
+            type: natGateway  
+            target: network-egress-nat-B       
+      - name: network-egress-public-rt-A
+        routes:
+          - name: IgwRoute
+            destination: 0.0.0.0/0
+            type: internetGateway
+            target: IGW           
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main
+      - name: network-egress-public-rt-B
+        routes: 
+          - name: IgwRoute
+            destination: 0.0.0.0/0
+            type: internetGateway
+            target: IGW        
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main  
+    subnets:
+      - name: network-egress-public-A
+        availabilityZone: a
+        routeTable: network-egress-public-rt-A
+        ipv4CidrBlock: 10.116.42.0/27
+      - name: network-egress-public-B
+        availabilityZone: b
+        routeTable: network-egress-public-rt-B
+        ipv4CidrBlock: 10.116.42.32/27
+      - name: egress-tgw-attach-A
+        availabilityZone: a
+        routeTable: egress-tgw-A
+        ipv4CidrBlock: 100.64.2.0/28
+      - name: egress-tgw-attach-B
+        availabilityZone: b
+        routeTable: egress-tgw-B
+        ipv4CidrBlock: 100.64.2.16/28
+    transitGatewayAttachments: 
+      - name: egress-tgw-attach
+        transitGateway:
+          name: Network-Main
+          account: Network
+        # options:
+        #   applianceModeSupport: enable
+        routeTableAssociations:
+          - Network-Main-Spoke
+        subnets:
+          - egress-tgw-attach-A
+          - egress-tgw-attach-B        
+
+##########################################
+#ingress VPC
+##########################################
+  - name: ingress-vpc
+    account: Network
+    region: *HOME_REGION
+    internetGateway: true
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    cidrs:
+      - 10.116.43.0/24
+      - 100.64.3.0/24
+
+
+    routeTables:
+      - name: ingress-tgw-A
+        routes:
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main        
+      - name: ingress-tgw-B
+        routes:
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main        
+      - name: network-ingress-public-rt-A
+        routes:
+          - name: IgwRoute
+            destination: 0.0.0.0/0
+            type: internetGateway
+            target: IGW           
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main
+      - name: network-ingress-public-rt-B
+        routes: 
+          - name: IgwRoute
+            destination: 0.0.0.0/0
+            type: internetGateway
+            target: IGW        
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main  
+      - name: network-ingress-private-rt-A
+        routes:
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main
+      - name: network-ingress-private-rt-B
+        routes: 
+          - name: TgwRoute
+            destination: 10.0.0.0/8
+            type: transitGateway
+            target: Network-Main              
+    subnets:
+      - name: network-ingress-public-A
+        availabilityZone: a
+        routeTable: network-ingress-public-rt-A
+        ipv4CidrBlock: 10.116.43.0/27
+      - name: network-ingress-public-B
+        availabilityZone: b
+        routeTable: network-ingress-public-rt-B
+        ipv4CidrBlock: 10.116.43.32/27
+      - name: network-ingress-private-A
+        availabilityZone: a
+        routeTable: network-ingress-private-rt-A
+        ipv4CidrBlock: 10.116.43.64/27
+      - name: network-ingress-private-B
+        availabilityZone: b
+        routeTable: network-ingress-private-rt-B
+        ipv4CidrBlock: 10.116.43.96/27        
+      - name: ingress-tgw-attach-A
+        availabilityZone: a
+        routeTable: ingress-tgw-A
+        ipv4CidrBlock: 100.64.3.0/28
+      - name: ingress-tgw-attach-B
+        availabilityZone: b
+        routeTable: ingress-tgw-B
+        ipv4CidrBlock: 100.64.3.16/28
+    transitGatewayAttachments: 
+      - name: ingress-tgw-attach
+        transitGateway:
+          name: Network-Main
+          account: Network
+        # options:
+        #   applianceModeSupport: enable
+        routeTableAssociations:
+          - Network-Main-Spoke
+        routeTablePropagations:
+          - Network-Main-Inspection          
+        subnets:
+          - ingress-tgw-attach-A
+          - ingress-tgw-attach-B                      
+
+
+##########################################
+#Inspection VPC
+##########################################
+
+  - name: inspection-vpc
+    account: Network
+    region: *HOME_REGION
+    cidrs:
+      - 10.116.40.0/23
+      - 100.64.6.0/24
+    internetGateway: true
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+
+    natGateways:
+      - name: Nat-Network-Inspection-A
+        subnet: inspection-nat-A
+      - name: Nat-Network-Inspection-B
+        subnet: inspection-nat-B
+
+
+    routeTables:
+      - name: inspection-tgw-A
+        routes:
+          - name: NfwRoute
+            destination: 0.0.0.0/0
+            type: networkFirewall
+            target: accelerator-firewall
+            targetAvailabilityZone: a        
+      - name: inspection-tgw-B
+        routes:
+          - name: NfwRoute
+            destination: 0.0.0.0/0
+            type: networkFirewall
+            target: accelerator-firewall
+            targetAvailabilityZone: b        
+      - name: inspection-nfw-A
+        routes:
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main
+      - name: inspection-nfw-B
+        routes:
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main
+      - name: inspection-outbound-A
+        routes: []
+          # - name: DevTgwRoute
+          #   destination: 10.116.0.0/21
+          #   type: transitGateway
+          #   target: Network-Main
+          # - name: ProdTgwRoute
+          #   destination: 10.116.64.0/20
+          #   type: transitGateway
+          #   target: Network-Main
+          # - name: NatRoute
+          #   destination: 0.0.0.0/0
+          #   type: natGateway
+      - name: inspection-outbound-B
+        routes: []
+          # - name: DevTgwRoute
+          #   destination: 10.116.0.0/21
+          #   type: transitGateway
+          #   target: Network-Main
+          # - name: ProdTgwRoute
+          #   destination: 10.116.64.0/20
+          #   type: transitGateway
+          #   target: Network-Main
+          # - name: NatRoute
+          #   destination: 0.0.0.0/0
+          #   type: natGateway
+      - name: inspection-inbound-A
+        routes: []
+          # - name: DevTgwRoute
+          #   destination: 10.116.0.0/21
+          #   type: transitGateway
+          #   target: Network-Main
+          # - name: ProdTgwRoute
+          #   destination: 10.116.64.0/20
+          #   type: transitGateway
+          #   target: Network-Main
+      - name: inspection-inbound-B
+        routes: []
+          # - name: DevTgwRoute
+          #   destination: 10.116.0.0/21
+          #   type: transitGateway
+          #   target: Network-Main
+          # - name: ProdTgwRoute
+          #   destination: 10.116.64.0/20
+          #   type: transitGateway
+          #   target: Network-Main
+      - name: inspection-management-A
+        routes: []
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main
+      - name: inspection-management-B
+        routes: []
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main
+      - name: inspection-nat-A
+        routes:
+          - name: IgwRoute
+            destination: 0.0.0.0/0
+            type: internetGateway
+            target: IGW           
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main
+      - name: inspection-nat-B
+        routes: 
+          - name: IgwRoute
+            destination: 0.0.0.0/0
+            type: internetGateway
+            target: IGW        
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main
+    subnets:
+      - name: inspection-nfw-A
+        availabilityZone: a
+        routeTable: inspection-nfw-A
+        ipv4CidrBlock: 10.116.40.0/27
+      - name: inspection-nfw-B
+        availabilityZone: b
+        routeTable: inspection-nfw-B
+        ipv4CidrBlock: 10.116.40.32/27
+      - name: inspection-inbound-A
+        availabilityZone: a
+        routeTable: inspection-inbound-A
+        ipv4CidrBlock: 10.116.40.64/27
+      - name: inspection-inbound-B
+        availabilityZone: b
+        routeTable: inspection-inbound-B
+        ipv4CidrBlock: 10.116.40.96/27
+      - name: inspection-outbound-A
+        availabilityZone: a
+        routeTable: inspection-outbound-A
+        ipv4CidrBlock: 10.116.40.128/27
+      - name: inspection-outbound-B
+        availabilityZone: b
+        routeTable: inspection-outbound-B
+        ipv4CidrBlock: 10.116.40.160/27
+      - name: inspection-management-A
+        availabilityZone: a
+        routeTable: inspection-management-A
+        ipv4CidrBlock: 10.116.40.192/27
+      - name: inspection-management-B
+        availabilityZone: b
+        routeTable: inspection-management-B
+        ipv4CidrBlock: 10.116.40.224/27
+      - name: inspection-nat-A
+        availabilityZone: a
+        routeTable: inspection-nat-A
+        ipv4CidrBlock: 10.116.41.0/27
+      - name: inspection-nat-B
+        availabilityZone: b
+        routeTable: inspection-nat-B
+        ipv4CidrBlock: 10.116.41.32/27
+      - name: inspection-tgw-attach-A
+        availabilityZone: a
+        routeTable: inspection-tgw-A
+        ipv4CidrBlock: 100.64.6.0/28
+      - name: inspection-tgw-attach-B
+        availabilityZone: b
+        routeTable: inspection-tgw-B
+        ipv4CidrBlock: 100.64.6.16/28
+    transitGatewayAttachments: 
+      - name: inspection-tgw-attach
+        transitGateway:
+          name: Network-Main
+          account: Network
+        options:
+          applianceModeSupport: enable
+        routeTableAssociations:
+          - Network-Main-Inspection
+        subnets:
+          - inspection-tgw-attach-A
+          - inspection-tgw-attach-B
+
+#####################################
+# Dev Account VPC
+#####################################    
+
+  # - name: dev-vpc
+  #   account: Dev
+  #   region: *HOME_REGION
+  #   cidrs:
+  #     - 10.116.0.0/21
+  #     - 100.64.0.0/24
+  #   internetGateway: true
+  #   enableDnsHostnames: true
+  #   enableDnsSupport: true
+  #   instanceTenancy: default
+  #   routeTables:
+  #     - name: dev-tgw-A
+  #       routes: []
+  #     - name: dev-tgw-B
+  #       routes: []
+  #     - name: dev-private-A
+  #       routes:
+  #         - name: TgwRoute
+  #           destination: 0.0.0.0/0
+  #           type: transitGateway
+  #           target: Network-Main
+  #     - name: dev-private-B
+  #       routes: 
+  #         - name: TgwRoute
+  #           destination: 0.0.0.0/0
+  #           type: transitGateway
+  #           target: Network-Main   
+  #     - name: dev-alb-A
+  #       routes: []
+  #         # - name: TgwRoute
+  #         #   destination: 0.0.0.0/0
+  #         #   type: endpoint
+  #     - name: dev-alb-B
+  #       routes: []
+  #         # - name: TgwRoute
+  #         #   destination: 0.0.0.0/0
+  #         #   type: endpoint
+  #     - name: dev-endpoint-A
+  #       routes:
+  #         - name: IGWRoute
+  #           destination: 0.0.0.0/0
+  #           type: internetGateway
+  #           target: IGW
+  #     - name: dev-endpoint-B
+  #       routes: 
+  #         - name: IGWRoute
+  #           destination: 0.0.0.0/0
+  #           type: internetGateway
+  #           target: IGW
+  #     - name: igw-table
+  #       gatewayAssociation: internetGateway
+  #       routes: []
+  #         # - name: endpoint-a-route
+  #         #   destination: 10.116.0.0/23
+  #         #   type: endpoint
+  #         # - name: endpoint-b-route
+  #         #   destination: 10.116.2.0/23
+  #         #   type: endpoint 
+  #   subnets:
+  #     - name: dev-private-A
+  #       availabilityZone: a
+  #       routeTable: dev-private-A
+  #       ipv4CidrBlock: 10.116.0.0/23
+  #     - name: dev-private-B
+  #       availabilityZone: b
+  #       routeTable: dev-private-B
+  #       ipv4CidrBlock: 10.116.2.0/23
+  #     - name: dev-alb-A
+  #       availabilityZone: a
+  #       routeTable: dev-alb-A
+  #       ipv4CidrBlock: 10.116.4.0/28
+  #     - name: dev-alb-B
+  #       availabilityZone: b
+  #       routeTable: dev-alb-B
+  #       ipv4CidrBlock: 10.116.4.16/28
+  #     - name: dev-endpoint-A
+  #       availabilityZone: a
+  #       routeTable: dev-endpoint-A
+  #       ipv4CidrBlock: 10.116.4.32/28
+  #     - name: dev-endpoint-B
+  #       availabilityZone: b
+  #       routeTable: dev-endpoint-B
+  #       ipv4CidrBlock: 10.116.4.48/28
+  #     - name: dev-tgw-A
+  #       availabilityZone: a
+  #       routeTable: dev-tgw-A
+  #       ipv4CidrBlock: 100.64.0.0/28
+  #     - name: dev-tgw-B
+  #       availabilityZone: b
+  #       routeTable: dev-tgw-B
+  #       ipv4CidrBlock: 100.64.0.16/28
+  #   transitGatewayAttachments:
+  #     - name: dev
+  #       transitGateway:
+  #         name: Network-Main
+  #         account: Network
+  #       options:
+  #         applianceModeSupport: enable
+  #       routeTableAssociations:
+  #         - Network-Main-Spoke
+  #       routeTablePropagations:
+  #         - Network-Main-Inspection
+  #       subnets:
+  #         - dev-tgw-A
+  #         - dev-tgw-B
+  #   useCentralEndpoints: true          
+
+# #####################################
+# # Prod Account VPC
+# #####################################    
+
+  - name: prod-vpc
+    account: Prod
+    region: *HOME_REGION
+    cidrs:
+      - 10.116.64.0/20
+      - 100.64.9.0/24
+    internetGateway: true
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    routeTables:
+      - name: prod-tgw-A
+        routes: []
+      - name: prod-tgw-B
+        routes: []
+      - name: prod-app-A
+        routes: 
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main
+      - name: prod-app-B
+        routes: 
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main
+      - name: prod-db-A
+        routes: 
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main    
+      - name: prod-db-B
+        routes: 
+          - name: TgwRoute
+            destination: 0.0.0.0/0
+            type: transitGateway
+            target: Network-Main    
+      - name: prod-alb-A
+        routes: []
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main    
+      - name: prod-alb-B
+        routes: []
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main  
+      - name: prod-endpoint-A
+        routes: []
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main    
+      - name: prod-endpoint-B
+        routes: []
+          # - name: TgwRoute
+          #   destination: 0.0.0.0/0
+          #   type: transitGateway
+          #   target: Network-Main
+      - name: igw-table
+        gatewayAssociation: internetGateway
+        routes: []
+          # - name: endpoint-a-route
+          #   destination: 10.116.64.0/23
+          #   type: endpoint
+          # - name: endpoint-b-route
+          #   destination: 10.116.66.0/23
+          #   type: endpoint 
+    subnets:
+      - name: prod-app-A
+        availabilityZone: a
+        routeTable: prod-app-A
+        ipv4CidrBlock: 10.116.64.0/23
+      - name: prod-app-B
+        availabilityZone: b
+        routeTable: prod-app-B
+        ipv4CidrBlock: 10.116.66.0/23
+      - name: prod-db-A
+        availabilityZone: a
+        routeTable: prod-db-A
+        ipv4CidrBlock: 10.116.68.0/26
+      - name: prod-db-B
+        availabilityZone: b
+        routeTable: prod-db-B
+        ipv4CidrBlock: 10.116.68.64/26
+      - name: prod-alb-A
+        availabilityZone: a
+        routeTable: prod-alb-A
+        ipv4CidrBlock: 10.116.68.128/28
+      - name: prod-alb-B
+        availabilityZone: b
+        routeTable: prod-alb-B
+        ipv4CidrBlock: 10.116.68.144/28
+      - name: prod-endpoint-A
+        availabilityZone: a
+        routeTable: prod-endpoint-A
+        ipv4CidrBlock: 10.116.68.160/28
+      - name: prod-endpoint-B
+        availabilityZone: b
+        routeTable: prod-endpoint-B
+        ipv4CidrBlock: 10.116.68.176/28
+      - name: prod-tgw-A
+        availabilityZone: a
+        routeTable: prod-tgw-A
+        ipv4CidrBlock: 100.64.9.0/28
+      - name: prod-tgw-B
+        availabilityZone: b
+        routeTable: prod-tgw-B
+        ipv4CidrBlock: 100.64.9.16/28
+    transitGatewayAttachments:
+      - name: prod
+        transitGateway:
+          name: Network-Main
+          account: Network
+        options:
+          applianceModeSupport: enable
+        routeTableAssociations:
+          - Network-Main-Spoke
+        routeTablePropagations:
+          - Network-Main-Inspection
+        subnets:
+          - prod-tgw-A
+          - prod-tgw-B
+    useCentralEndpoints: true          
+
+##############################################################
+# Global configuration for VPC flow logs                     #
+# Where there is no flow log configuration defined with VPC  #
+# this configuration will be used for flow log configuration #
+##############################################################
+vpcFlowLogs:
+  trafficType: ALL
+  maxAggregationInterval: 600
+  destinations:
+    - cloud-watch-logs
+  destinationsConfig:
+    cloudWatchLogs:
+      retentionInDays: 30
+  defaultFormat: false
+  customFields:
+    - version
+    - account-id
+    - interface-id
+    - srcaddr
+    - dstaddr
+    - srcport
+    - dstport
+    - protocol
+    - packets
+    - bytes
+    - start
+    - end
+    - action
+    - log-status
+    - vpc-id
+    - subnet-id
+    - instance-id
+    - tcp-flags
+    - type
+    - pkt-srcaddr
+    - pkt-dstaddr
+    - region
+    - az-id
+    - pkt-src-aws-service
+    - pkt-dst-aws-service
+    - flow-direction
+    - traffic-path

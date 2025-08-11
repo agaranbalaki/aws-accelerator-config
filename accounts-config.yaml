@@ -1,0 +1,99 @@
+mandatoryAccounts:
+  - name: Management
+    description: >-
+      The management (primary) account. Do not change the name field for this
+      mandatory account. Note, the account name key does not need to match the
+      AWS account name.
+    email: thiruvi+LZA-DEMO@amazon.com
+    organizationalUnit: Root
+    warm: false
+  - name: LogArchive
+    description: >-
+      The log archive account. Do not change the name field for this mandatory
+      account. Note, the account name key does not need to match the AWS account
+      name.
+    email: thiruvi+LZA-DEMO-LOG@amazon.com
+    organizationalUnit: Security
+    warm: false
+  - name: Audit
+    description: >-
+      The security audit account (also referred to as the audit account). Do not
+      change the name field for this mandatory account. Note, the account name
+      key does not need to match the AWS account name.
+    email: thiruvi+LZA-DEMO-AUDIT@amazon.com
+    organizationalUnit: Security
+    warm: false
+workloadAccounts:
+  # The "name" will be used to set the AWS Account name
+  # The "name" value does not currently support spaces
+  # The "name" value DOES NOT need to match the account name
+  - name: SharedServices
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-SHRD@amazon.com
+    organizationalUnit: Infrastructure
+  # - name: Monitoring
+  #   description: The SharedServices account
+  #   email: thiruvi+LZA-DEMO-monitor@amazon.com
+  #   organizationalUnit: Security   
+  - name: Operations
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-oper@amazon.com
+    organizationalUnit: Infrastructure     
+  - name: Network
+    description: The Netowrk account
+    email: thiruvi+LZA-DEMO-NET@amazon.com
+    organizationalUnit: Infrastructure
+  - name: Dev
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-DEV@amazon.com
+    organizationalUnit: Workload/Dev
+    deleteDefaultVpc: true
+  - name: Sand
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-SAND@amazon.com
+    organizationalUnit: Sandbox
+  # - name: Dev1
+  #   description: The SharedServices account
+  #   email: thiruvi+LZA-DEMO-DEV1@amazon.com
+  #   organizationalUnit: Workload/Dev 
+  #   deleteDefaultVpc: true
+  # - name: Dev2
+  #   description: The SharedServices account
+  #   email: thiruvi+LZA-DEMO-DEV2@amazon.com
+  #   organizationalUnit: Workload/Dev 
+  - name: QA
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-QA@amazon.com
+    organizationalUnit: Workload/Test
+    deleteDefaultVpc: true
+  - name: UAT
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-UAT@amazon.com
+    organizationalUnit: Workload/Test
+    deleteDefaultVpc: true
+  - name: ST
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-ST@amazon.com
+    organizationalUnit: Workload/Test
+  - name: Training
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-TRN@amazon.com
+    organizationalUnit: Workload/Test
+  - name: Prod
+    description: The SharedServices account
+    email: thiruvi+LZA-DEMO-PROD@amazon.com
+    organizationalUnit: Workload/Prod
+  - name: HIS-Dev
+    description: HIS Dev
+    email: thiruvi+LZA-DEMO-HDEV@amazon.com
+    organizationalUnit: HIS/HIS-Non-Prod
+  - name: EIS-Prod
+    description: EIS Prod
+    email: thiruvi+LZA-DEMO-HPROD@amazon.com
+    organizationalUnit: HIS/HIS-Prod    
+    
+    
+    
+    
+    
+    

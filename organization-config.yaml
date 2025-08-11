@@ -1,0 +1,58 @@
+enable: true
+organizationalUnits:
+  - name: Security
+  - name: Infrastructure
+  - name: Sandbox
+  - name: Suspended
+    ignore: true 
+  - name: HIS
+  - name: HIS/HIS-Non-Prod    
+  - name: HIS/HIS-Prod      
+  - name: HIS/HIS-Perf       
+  - name: Workload
+  - name: Workload/Dev
+  - name: Workload/Test
+  - name: Workload/Prod
+serviceControlPolicies:
+  - name: Base-scp-root
+    description: >
+      baseline SCP for root
+    policy: service-control-policies/base-scp.json
+    type: customerManaged
+    deploymentTargets:
+      organizationalUnits:
+        - Root
+  - name: baseline-scp-root
+    description: >
+      baseline SCP for root
+    policy: service-control-policies/base.json
+    type: customerManaged
+    deploymentTargets:
+      organizationalUnits:
+        - Root       
+  - name: region-services
+    description: >
+      baseline SCP for root
+    policy: service-control-policies/region-services.json
+    type: customerManaged
+    deploymentTargets:
+      organizationalUnits:
+        - Root   
+  - name: lza-HCL-SCP-base-root
+    description: >
+      baseline SCP for healthcare customers
+    policy: service-control-policies/scp-hcl-base-root.json
+    type: customerManaged
+    deploymentTargets:
+      organizationalUnits:
+        - HIS
+  - name: lza-HCL-SCP-hipaa-service
+    description: >
+      hipaa SCP for healthcare customers
+    policy: service-control-policies/scp-hcl-hipaa-service.json
+    type: customerManaged
+    deploymentTargets:
+      organizationalUnits:
+        - HIS                               
+taggingPolicies: []
+backupPolicies: []
