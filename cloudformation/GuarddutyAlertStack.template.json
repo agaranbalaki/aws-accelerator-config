@@ -1,0 +1,421 @@
+{
+  "Parameters": {
+   "emailaddress": {
+    "Type": "String",
+    "Description": "The email address that will be subscribed to the SNS topic for GD alerts",
+    "Default": "thiruvi@amazon"
+   },
+   "BootstrapVersion": {
+    "Type": "AWS::SSM::Parameter::Value<String>",
+    "Default": "/cdk-bootstrap/accel/version",
+    "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+   }
+  },
+  "Resources": {
+   "SNSEncryptionKeyE89B563E": {
+    "Type": "AWS::KMS::Key",
+    "Properties": {
+     "KeyPolicy": {
+      "Statement": [
+       {
+        "Action": "kms:*",
+        "Effect": "Allow",
+        "Principal": {
+         "AWS": {
+          "Fn::Join": [
+           "",
+           [
+            "arn:",
+            {
+             "Ref": "AWS::Partition"
+            },
+            ":iam::",
+            {
+             "Ref": "AWS::AccountId"
+            },
+            ":root"
+           ]
+          ]
+         }
+        },
+        "Resource": "*"
+       },
+       {
+        "Action": [
+         "kms:Decrypt",
+         "kms:GenerateDataKey"
+        ],
+        "Effect": "Allow",
+        "Principal": {
+         "Service": "events.amazonaws.com"
+        },
+        "Resource": "*"
+       }
+      ],
+      "Version": "2012-10-17"
+     },
+     "EnableKeyRotation": true
+    },
+    "UpdateReplacePolicy": "Retain",
+    "DeletionPolicy": "Retain",
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/SNSEncryptionKey/Resource"
+    }
+   },
+   "SNSEncryptionKeyAliasFF2D93C9": {
+    "Type": "AWS::KMS::Alias",
+    "Properties": {
+     "AliasName": "alias/SNS-CMK-GuardDutyAlert",
+     "TargetKeyId": {
+      "Fn::GetAtt": [
+       "SNSEncryptionKeyE89B563E",
+       "Arn"
+      ]
+     }
+    },
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/SNSEncryptionKey/Alias/Resource"
+    }
+   },
+   "GuardDutyAlertCC36974F": {
+    "Type": "AWS::SNS::Topic",
+    "Properties": {
+     "DisplayName": "GuardDuty Alert Topic",
+     "KmsMasterKeyId": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":kms:",
+        {
+         "Ref": "AWS::Region"
+        },
+        ":",
+        {
+         "Ref": "AWS::AccountId"
+        },
+        ":alias/SNS-CMK-GuardDutyAlert"
+       ]
+      ]
+     },
+     "TopicName": "GuardDutyAlerts"
+    },
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/GuardDutyAlert/Resource"
+    }
+   },
+   "GuardDutyAlertTokenSubscription133033AE3": {
+    "Type": "AWS::SNS::Subscription",
+    "Properties": {
+     "Protocol": "email",
+     "TopicArn": {
+      "Ref": "GuardDutyAlertCC36974F"
+     },
+     "Endpoint": {
+      "Ref": "emailaddress"
+     }
+    },
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/GuardDutyAlert/TokenSubscription:1/Resource"
+    }
+   },
+   "GuardDutyAlertPolicy7196E2AC": {
+    "Type": "AWS::SNS::TopicPolicy",
+    "Properties": {
+     "PolicyDocument": {
+      "Statement": [
+       {
+        "Action": "sns:Publish",
+        "Effect": "Allow",
+        "Principal": {
+         "Service": "events.amazonaws.com"
+        },
+        "Resource": {
+         "Ref": "GuardDutyAlertCC36974F"
+        },
+        "Sid": "0"
+       }
+      ],
+      "Version": "2012-10-17"
+     },
+     "Topics": [
+      {
+       "Ref": "GuardDutyAlertCC36974F"
+      }
+     ]
+    },
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/GuardDutyAlert/Policy/Resource"
+    }
+   },
+   "guarddutyrule294F07D0": {
+    "Type": "AWS::Events::Rule",
+    "Properties": {
+     "EventPattern": {
+      "detail-type": [
+       "GuardDuty Finding"
+      ],
+      "source": [
+       "aws.guardduty"
+      ]
+     },
+     "State": "ENABLED",
+     "Targets": [
+      {
+       "Arn": {
+        "Ref": "GuardDutyAlertCC36974F"
+       },
+       "Id": "Target0",
+       "InputTransformer": {
+        "InputPathsMap": {
+         "detail-type": "$.detail-type",
+         "detail-accountId": "$.detail.accountId",
+         "detail-createdAt": "$.detail.createdAt",
+         "detail-title": "$.detail.title",
+         "detail-description": "$.detail.description"
+        },
+        "InputTemplate": "{\"GuardDuty Alert\":\"AlertType:<detail-type>,Account:<detail-accountId>,Created:<detail-createdAt>,Alert:<detail-title>,AlertDescription: <detail-description>\"}"
+       }
+      }
+     ]
+    },
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/guardduty_rule/Resource"
+    }
+   },
+   "CDKMetadata": {
+    "Type": "AWS::CDK::Metadata",
+    "Properties": {
+     "Analytics": "v2:deflate64:H4sIAAAAAAAA/1WMyw6CMBBFv4V9qfhYuDUs3RBwb0oZ40hpSR+ahvTfZUpi4uo+zsw98FPFq0J8XCmHsVTY86XzQo6sfuhGWDGBB8tWfl/GyfHlCpEQyUWhcBSySczpld/MjJLKzXShd9Li7NFoav9yPmmMQhl/H1tMDN6g/brXBgUESVPKDpwJVua2NnpA2kqsif5p9O7I9xU/Fy+HWNqgPU7A202/ToDJGOwAAAA="
+    },
+    "Metadata": {
+     "aws:cdk:path": "CdkGuarddutyAlertsStack/CDKMetadata/Default"
+    },
+    "Condition": "CDKMetadataAvailable"
+   }
+  },
+  "Conditions": {
+   "CDKMetadataAvailable": {
+    "Fn::Or": [
+     {
+      "Fn::Or": [
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "af-south-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ap-east-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ap-northeast-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ap-northeast-2"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ap-south-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ap-southeast-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ap-southeast-2"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "ca-central-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "cn-north-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "cn-northwest-1"
+        ]
+       }
+      ]
+     },
+     {
+      "Fn::Or": [
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "eu-central-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "eu-north-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "eu-south-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "eu-west-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "eu-west-2"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "eu-west-3"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "me-south-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "sa-east-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "us-east-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "us-east-2"
+        ]
+       }
+      ]
+     },
+     {
+      "Fn::Or": [
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "us-west-1"
+        ]
+       },
+       {
+        "Fn::Equals": [
+         {
+          "Ref": "AWS::Region"
+         },
+         "us-west-2"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "Rules": {
+   "CheckBootstrapVersion": {
+    "Assertions": [
+     {
+      "Assert": {
+       "Fn::Not": [
+        {
+         "Fn::Contains": [
+          [
+           "1",
+           "2",
+           "3",
+           "4",
+           "5"
+          ],
+          {
+           "Ref": "BootstrapVersion"
+          }
+         ]
+        }
+       ]
+      },
+      "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+     }
+    ]
+   }
+  }
+ }
