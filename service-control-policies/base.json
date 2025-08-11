@@ -1,0 +1,128 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyNonCloudAdmin",
+      "Action": [
+        "config:DeleteConfigRule",
+        "config:DeleteConfigurationRecorder",
+        "config:DeleteDeliveryChannel",
+        "config:StopConfigurationRecorder",
+        "s3:PutAccountPublicAccessBlock",
+        "aws-marketplace:Subscribe",
+        "aws-marketplace:Unsubscribe",
+        "aws-marketplace:CreatePrivateMarketplaceRequests",
+        "aws-marketplace:AssociateProductsWithPrivateMarketplace",
+        "aws-marketplace:DisassociateProductsFromPrivateMarketplace",
+        "iam:CreateUser",
+        "iam:CreateAccessKey",
+        "iam:DeleteAccountPasswordPolicy",
+        "iam:UpdateAccountPasswordPolicy"
+      ],
+      "Resource": "*",
+      "Effect": "Deny",
+      "Condition": {
+        "StringNotLike": {
+          "aws:PrincipalARN": [
+            "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AWSAdministratorAccess*",
+            "arn:aws:iam::*:role/OrganizationAccountAccessRole",
+            "arn:aws:iam::*:role/AWSControlTowerExecution",
+            "arn:aws:iam::*:role/AWSAccelerator-*"
+          ]
+        }
+      }
+    },
+
+    {
+      "Sid": "DenyNonNetworkAdmin",
+      "Action": [
+        "ec2:CreateNatGateway",
+        "ec2:CreateInternetGateway",
+        "ec2:DeleteNatGateway",
+        "ec2:AttachInternetGateway",
+        "ec2:DeleteInternetGateway",
+        "ec2:DetachInternetGateway",
+        "ec2:CreateClientVpnRoute",
+        "ec2:AttachVpnGateway",
+        "ec2:DisassociateClientVpnTargetNetwork",
+        "ec2:DeleteClientVpnEndpoint",
+        "ec2:DeleteVpcPeeringConnection",
+        "ec2:AcceptVpcPeeringConnection",
+        "ec2:ModifyClientVpnEndpoint",
+        "ec2:CreateVpnConnectionRoute",
+        "ec2:RevokeClientVpnIngress",
+        "ec2:RejectVpcPeeringConnection",
+        "ec2:DetachVpnGateway",
+        "ec2:DeleteVpnConnectionRoute",
+        "ec2:CreateClientVpnEndpoint",
+        "ec2:AuthorizeClientVpnIngress",
+        "ec2:DeleteVpnGateway",
+        "ec2:TerminateClientVpnConnections",
+        "ec2:DeleteClientVpnRoute",
+        "ec2:ModifyVpcPeeringConnectionOptions",
+        "ec2:CreateVpnGateway",
+        "ec2:DeleteVpnConnection",
+        "ec2:CreateVpcPeeringConnection",
+        "ec2:CreateVpnConnection",
+        "ec2:CreateDefaultSubnet",
+        "ec2:CreateDefaultVpc"
+      ],
+      "Resource": "*",
+      "Effect": "Deny",
+      "Condition": {
+        "StringNotLike": {
+          "aws:PrincipalARN": [
+            "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AWSAdministratorAccess*",
+            "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_DWS-NetworkAdministrators*",
+            "arn:aws:iam::*:role/OrganizationAccountAccessRole",
+            "arn:aws:iam::*:role/AWSControlTowerExecution",
+            "arn:aws:iam::*:role/AWSAccelerator-*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyNonSecurityAdmin",
+      "Action": [
+        "guardduty:DeleteDetector",
+        "guardduty:DeleteInvitations",
+        "guardduty:DeleteIPSet",
+        "guardduty:DeleteMembers",
+        "guardduty:DeleteThreatIntelSet",
+        "guardduty:DisassociateFromMasterAccount",
+        "guardduty:DisassociateMembers",
+        "guardduty:StopMonitoringMembers",
+        "guardduty:UpdateDetector",
+        "kms:ScheduleKeyDeletion",
+        "kms:Delete*",
+        "securityhub:DeleteInvitations",
+        "securityhub:DisableSecurityHub",
+        "securityhub:DisassociateFromMasterAccount",
+        "securityhub:DeleteMembers",
+        "securityhub:DisassociateMembers"
+      ],
+      "Resource": "*",
+      "Effect": "Deny",
+      "Condition": {
+        "StringNotLike": {
+          "aws:PrincipalARN": [
+            "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_DWS-Security-Admins"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyRootUser",
+      "Action": "*",
+      "Resource": "*",
+      "Effect": "Deny",
+      "Condition": {
+        "StringLike": {
+          "aws:PrincipalArn": [
+            "arn:aws:iam::*:root"
+          ]
+        }
+      }
+    }
+  ]
+}
