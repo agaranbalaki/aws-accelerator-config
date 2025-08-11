@@ -11,7 +11,7 @@ mandatoryAccounts:
     description: >-
       The log archive account. Do not change the name field for this mandatory
       account. Note, the account name key does not need to match the AWS account
-      name12345678.
+      name.
     email: thiruvi+LZA-DEMO-LOG@amazon.com
     organizationalUnit: Security
     warm: false
