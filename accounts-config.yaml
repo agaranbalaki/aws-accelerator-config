@@ -3,7 +3,7 @@ mandatoryAccounts:
     description: >-
       The management (primary) account. Do not change the name field for this
       mandatory account. Note, the account name key does not need to match the
-      AWS account name.
+      AWS account name.q132414
     email: thiruvi+LZA-DEMO@amazon.com
     organizationalUnit: Root
     warm: false
@@ -97,3 +97,4 @@ workloadAccounts:
     
     
     
+
